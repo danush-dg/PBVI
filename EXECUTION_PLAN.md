@@ -222,7 +222,8 @@ cp .env.example .env
 # Edit .env to set real values before running
 docker compose up db -d
 sleep 8
-docker compose exec db psql -U riskuser -d riskdb \
+docker compose exec db psql -U postgres -d risk_db \
+
   -c "SELECT customer_id, risk_tier FROM customer_risk_profiles ORDER BY customer_id;"
 ```
 
