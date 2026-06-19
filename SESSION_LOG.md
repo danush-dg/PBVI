@@ -7,7 +7,7 @@
 | v1.1 | 2026-06-19 | Engineer | Session 1 integration check — PASS. Session closed. |
 | v1.2 | 2026-06-19 | Engineer | Session 2 opened. Branch session/s02_api_core. |
 | v1.3 | 2026-06-19 | CC | Session 2 integration check — PASS. Session closed. |
-| v1.4 | 2026-06-19 | Engineer | Session 3 opened. Branch session/s03_lookup. |
+| v1.4 | 2026-06-19 | Engineer | Session 3 opened. Branch session/s03_lookup_endpoint. |
 | v1.5 | 2026-06-19 | CC | Session 3 integration check — PASS. Session closed. |
 
 ---
@@ -198,7 +198,7 @@ curl -s -H "X-API-Key: wrong" http://localhost:8000/customers/CUST-001
 
 ## Session 3 — Customer Lookup Endpoint
 
-**Branch:** session/s03_lookup
+**Branch:** session/s03_lookup_endpoint
 **Date:** 2026-06-19
 **Status:** COMPLETE — integration check PASS 2026-06-19
 
@@ -258,7 +258,7 @@ curl -s http://localhost:8000/customers/CUST-001
 **Date closed:** 2026-06-19
 **Final status:** COMPLETE — all tasks delivered, integration check PASS.
 
-**Commits on branch `session/s03_lookup`:**
+**Commits on branch `session/s03_lookup_endpoint`:**
 
 | Commit | Task | Description |
 |---|---|---|
