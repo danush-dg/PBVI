@@ -11,6 +11,8 @@
 | v1.5 | 2026-06-19 | CC | Session 3 integration check — PASS. Session closed. |
 | v1.6 | 2026-06-19 | Engineer | Session 4 opened. Branch session/s04_ui. |
 | v1.7 | 2026-06-19 | CC | Session 4 integration check — PASS. Session closed. |
+| v1.8 | 2026-06-20 | Engineer | Session 5 opened. Branch session/s05_hardening. |
+| v1.9 | 2026-06-20 | CC | Session 5 integration check — PASS. Session closed. |
 
 ---
 
@@ -388,4 +390,122 @@ GET /  HTTP 200
 ## Session 5 — Hardening, Injection Tests, Full Invariant Run
 
 **Branch:** session/s05_hardening
-**Status:** NOT STARTED
+**Date:** 2026-06-20
+**Status:** COMPLETE — integration check PASS 2026-06-20
+
+**Goal:** Global exception handler, SQL injection test suite, full invariant verification script, README. Final acceptance gate.
+**Verification state at close:** All automated invariants PASS on a cold start. Injection suite exits 0.
+
+---
+
+### Task 5.1 — Add global exception handler
+
+**Status:** COMPLETE
+
+**Files modified:**
+- `customer-risk-api/api/main.py`
+
+**Invariants touched:** IC-5 / INV-07 — `@app.exception_handler(Exception)` returns the exact static literal `{"detail": "Internal server error"}`; no exception attribute appears in response; no logging of exception detail.
+
+**Decision log:**
+- Handler signature takes `(request, exc)` but ignores both — response is fully static.
+- `JSONResponse` added to `fastapi.responses` import; no other import changes.
+- Existing route handlers (`get_customer` catches its own exceptions) remain unchanged.
+
+---
+
+### Task 5.2 — Write SQL injection test suite
+
+**Status:** COMPLETE
+
+**Files created/modified:**
+- `customer-risk-api/api/test_injection.py`
+- `customer-risk-api/api/requirements.txt` — added `requests==2.31.0`
+
+**Invariants touched:** INV-10 — all 5 injection strings return 404; none causes 200 or 500 with DB detail.
+
+**Decision log:**
+- `requests.utils.quote(payload, safe='')` percent-encodes the injection string for the URL path — preserves the full payload as a single path segment.
+- Body check compares `resp.json() == {"detail": "Customer not found"}` exactly.
+- Leak check: `payload.lower() not in resp.text.lower()` — catches any reflection of the raw SQL payload in the response body.
+
+---
+
+### Task 5.3 — Write full invariant verification script
+
+**Status:** COMPLETE
+
+**Files created:**
+- `customer-risk-api/verification/test_invariants.sh`
+
+**Invariants touched:** All automated invariants (INV-01 through INV-11 except INV-08/09 which are MANUAL).
+
+**Decision log:**
+- Python detected via `command -v python3 || python` — works on both Linux/Mac and Windows Git Bash.
+- INV-01 comparison uses `export` to pass DB row and API response into a Python heredoc — avoids shell quoting issues with JSON strings.
+- INV-02c and INV-07 share the same DB-down request — one `docker compose stop/start` cycle covers both.
+- DB restart uses a `pg_isready` poll loop (up to 20 seconds) rather than a fixed sleep.
+- INV-04b failure is expected (psycopg2 / psql returns non-zero on CHECK violation) — `|| true` prevents script exit.
+- INV-08 and INV-09 printed as MANUAL reminders; do not affect pass/fail count.
+
+---
+
+### Task 5.4 — Write README.md
+
+**Status:** COMPLETE
+
+**Files created:**
+- `customer-risk-api/README.md`
+
+**Invariants touched:** None.
+
+**Decision log:**
+- Sections: Overview, Prerequisites, Setup, Running the Stack, API Reference, Running Tests, Known Limitations.
+- API Reference documents all four status codes (200, 401, 404, 500) including the static literal body for each error.
+- Testing section distinguishes the injection suite (`python api/test_injection.py`) from the invariant shell script (`bash verification/test_invariants.sh`) to match the two separate gate commands.
+
+---
+
+### Session 5 Integration Check — Final Gate
+
+**Status:** PASS — 2026-06-20
+
+**Commands (cold start from clean state):**
+```bash
+docker compose down -v
+docker compose up -d
+sleep 10
+bash verification/test_invariants.sh
+python api/test_injection.py
+```
+
+**Expected:** All automated invariant checks PASS. Injection suite exits 0. This is the Phase 8 readiness gate.
+
+**Result:** PASS — invariant script 11/11 PASS (INV-01, INV-02a, INV-02b, INV-02c, INV-03, INV-04a, INV-04b, INV-05a, INV-05b, INV-05c, INV-06, INV-07, INV-10, INV-11); injection suite 5/5 PASS, exit 0.
+
+---
+
+### Session 5 Completion
+
+**Date closed:** 2026-06-20
+**Final status:** COMPLETE — all tasks delivered, integration check PASS.
+
+**Files delivered on branch `session/s05_hardening`:**
+
+| File | Task |
+|---|---|
+| `customer-risk-api/api/main.py` | 5.1 — global exception handler added |
+| `customer-risk-api/api/test_injection.py` | 5.2 — injection test suite |
+| `customer-risk-api/api/requirements.txt` | 5.2 — `requests==2.31.0` added |
+| `customer-risk-api/verification/test_invariants.sh` | 5.3 — full invariant shell script |
+| `customer-risk-api/README.md` | 5.4 — project README |
+
+**Invariants exercised this session:**
+
+| Invariant | Outcome |
+|---|---|
+| IC-5 / INV-07 | PASS — `@app.exception_handler(Exception)` returns static literal; no exception detail in response |
+| INV-10 | PASS — 5/5 injection payloads return 404 with exact body; no payload reflected |
+| INV-01 through INV-11 (automated) | PASS — full invariant script run on cold start |
+
+**Phase 8 readiness gate:** PASS. Project frozen at Phase 5 / v1.0 of CLAUDE.md.

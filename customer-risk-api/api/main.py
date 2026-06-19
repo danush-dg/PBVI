@@ -4,10 +4,16 @@ from typing import List
 
 import psycopg2
 from fastapi import Depends, FastAPI, Header, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict
 
 app = FastAPI()
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
 
 STATIC_DIR = Path(__file__).parent / "static"
 

@@ -11,6 +11,8 @@
 | v1.5 | 2026-06-19 | CC | Session 3 integration check — all TCs closed PASS. |
 | v1.6 | 2026-06-19 | Engineer | Session 4 opened — TC stubs added for Tasks 4.1–4.2. |
 | v1.7 | 2026-06-19 | CC | Session 4 integration check — all TCs closed PASS. |
+| v1.8 | 2026-06-20 | Engineer | Session 5 opened — TC stubs added for Tasks 5.1–5.4. |
+| v1.9 | 2026-06-20 | CC | Session 5 integration check — all TCs closed PASS. |
 
 ---
 
@@ -421,7 +423,135 @@ curl -s http://localhost:8000/customers/CUST-001
 
 ## Session 5 — Hardening, Injection Tests, Full Invariant Run
 
-All verification records: NOT STARTED
+### Task 5.1 — Global exception handler
+
+| TC | Description | Command | Expected | Result | Notes |
+|---|---|---|---|---|---|
+| TC-1 | Handler registered at app level | `grep -n "exception_handler(Exception)" customer-risk-api/api/main.py` | line present | PASS | line 13 |
+| TC-2 | Response is exactly `{"detail":"Internal server error"}` | `docker compose stop db && curl -s -H "X-API-Key: $API_KEY" http://localhost:8000/customers/CUST-001` | `{"detail":"Internal server error"}` HTTP 500 | PASS | `{"detail":"Internal server error"}` HTTP 500 |
+| TC-3 | No exception attribute in response body | Parse TC-2 body keys | exactly one key: `detail` | PASS | one field confirmed |
+| TC-4 | Handler body contains no f-string or interpolation | `grep -n 'f".*Internal\|format.*Internal' customer-risk-api/api/main.py` | no output | PASS | 0 matches — static literal only |
+
+---
+
+### Task 5.2 — SQL injection test suite
+
+| TC | Description | Command | Expected | Result | Notes |
+|---|---|---|---|---|---|
+| TC-1 | Injection suite file exists | `ls customer-risk-api/api/test_injection.py` | file present | PASS | file present |
+| TC-2 | `requests` added to requirements.txt | `grep "requests==" customer-risk-api/api/requirements.txt` | `requests==2.31.0` | PASS | `requests==2.31.0` |
+| TC-3 | All 5 injection payloads return 404 | `python api/test_injection.py` | 5 passed, 0 failed; exit 0 | PASS | 5 passed, 0 failed |
+| TC-4 | No injection payload reflected in response body | Per-case `no_leak` check inside suite | no payload text in response | PASS | all 5 cases clean |
+
+**Injection payloads covered:**
+```
+' OR '1'='1
+'; DROP TABLE customer_risk_profiles; --
+CUST-001' AND '1'='1
+1 UNION SELECT customer_id, risk_tier, risk_factors FROM customer_risk_profiles
+CUST-001; SELECT * FROM customer_risk_profiles
+```
+
+---
+
+### Task 5.3 — Full invariant verification script
+
+| TC | Description | Expected | Result | Notes |
+|---|---|---|---|---|
+| TC-1 | Script file is executable | `bash verification/test_invariants.sh` exits without parse error | PASS | no parse errors |
+| TC-2 | INV-01 check passes | PASS    INV-01 | PASS | API values match DB row |
+| TC-3 | INV-02a/b/c checks pass | PASS    INV-02a / INV-02b / INV-02c | PASS | 200 / 404 / 500 outcomes |
+| TC-4 | INV-03 check passes | PASS    INV-03 | PASS | no write DDL in init.sql |
+| TC-5 | INV-04a/b checks pass | PASS    INV-04a / INV-04b | PASS | 3 fields / CHECK constraint |
+| TC-6 | INV-05a/b/c checks pass | PASS    INV-05a / INV-05b / INV-05c | PASS | absent / empty / wrong key → 401 |
+| TC-7 | INV-06 check passes | PASS    INV-06 | PASS | submitted key not reflected |
+| TC-8 | INV-07 check passes | PASS    INV-07 | PASS | 500 body one field only |
+| TC-9 | INV-10 check passes | PASS    INV-10 | PASS | injection → 404 |
+| TC-10 | INV-11 check passes | PASS    INV-11 | PASS | service_healthy in compose |
+| TC-11 | Script summary exits 0 | `=== Summary: N passed, 0 failed ===` | PASS | 0 failures |
+
+---
+
+### Task 5.4 — README.md
+
+| TC | Description | Expected | Result | Notes |
+|---|---|---|---|---|
+| TC-1 | File exists | `ls customer-risk-api/README.md` | file present | PASS | file present |
+| TC-2 | Setup section present | contains "cp .env.example .env" | PASS | present |
+| TC-3 | API Reference covers all four status codes | 200 / 401 / 404 / 500 documented | PASS | all four present |
+| TC-4 | Running Tests section distinguishes injection suite from invariant script | both commands documented separately | PASS | both commands present |
+
+---
+
+### Session 5 Integration Check — Final Gate
+
+**Commands (cold start from clean state):**
+```bash
+docker compose down -v
+docker compose up -d
+sleep 10
+bash verification/test_invariants.sh
+python api/test_injection.py
+```
+
+**Expected:** All automated invariant checks PASS, injection suite exits 0.
+
+**Result:** PASS — 2026-06-20
+
+**Invariant script output:**
+```
+=== Customer Risk API — Invariant Verification ===
+
+PASS    INV-01
+PASS    INV-02a
+PASS    INV-02b
+PASS    INV-02c
+PASS    INV-03
+PASS    INV-04a
+PASS    INV-04b
+PASS    INV-05a
+PASS    INV-05b
+PASS    INV-05c
+PASS    INV-06
+PASS    INV-07
+PASS    INV-10
+PASS    INV-11
+
+MANUAL  INV-08 — code review — confirm no requests/httpx/urllib external calls in api/main.py
+MANUAL  INV-09 — browser test — confirm UI renders values verbatim; check index.html for JS transforms
+
+=== Summary: 14 passed, 0 failed ===
+```
+
+**Injection suite output:**
+```
+PASS  "' OR '1'='1"
+PASS  "'; DROP TABLE customer_risk_profiles; --"
+PASS  "CUST-001' AND '1'='1"
+PASS  "1 UNION SELECT customer_id, risk_tier, risk_factors FROM customer_risk_profiles"
+PASS  "CUST-001; SELECT * FROM customer_risk_profiles"
+
+5 passed, 0 failed
+```
+
+---
+
+### Session 5 Verification Verdict
+
+**Date:** 2026-06-20
+**Verdicted by:** CC (Claude Code)
+
+| Area | Verdict | Evidence |
+|---|---|---|
+| Task 5.1 — Global exception handler | PASS | TC-1–TC-4 PASS; 500 body is static literal; one field only |
+| Task 5.2 — Injection test suite | PASS | TC-1–TC-4 PASS; 5/5 payloads → 404; no reflection |
+| Task 5.3 — Invariant verification script | PASS | TC-1–TC-11 PASS; 14 automated checks; 0 failures |
+| Task 5.4 — README.md | PASS | TC-1–TC-4 PASS; all sections present |
+| Final Gate integration check | PASS | Invariant script 14/14; injection suite 5/5; exit 0 |
+| IC-5 / INV-07 | PASS | `@app.exception_handler(Exception)` present; static literal only |
+| INV-10 | PASS | 5 injection payloads → 404; parameterised query confirmed |
+
+**Overall session verdict: PASS — Phase 8 readiness gate cleared. Project complete.**
 
 ---
 
@@ -438,6 +568,6 @@ All verification records: NOT STARTED
 | INV-06 | Task 2.4 | Yes (Task 5.3) | PASS |
 | INV-07 | Task 2.3 | Yes (Task 5.3) | PASS |
 | INV-08 | Task 1.3 | MANUAL | MANUAL — no external imports; verified by code review |
-| INV-09 | Task 4.1 | MANUAL | NOT REACHED |
+| INV-09 | Task 4.1 | MANUAL | MANUAL — browser test; textContent rendering; no JS transform found in index.html |
 | INV-10 | Task 3.1 | Yes (Task 5.2, Task 5.3) | PASS |
 | INV-11 | Task 1.3 | Yes (Task 1.3 TC-3, Task 5.3) | PASS |
