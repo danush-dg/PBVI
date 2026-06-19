@@ -5,6 +5,8 @@
 |---|---|---|---|
 | v1.0 | 2026-06-19 | Engineer | Session 1 opened. |
 | v1.1 | 2026-06-19 | Engineer | Session 1 integration check — PASS. Session closed. |
+| v1.2 | 2026-06-19 | Engineer | Session 2 opened. Branch session/s02_api_core. |
+| v1.3 | 2026-06-19 | CC | Session 2 integration check — PASS. Session closed. |
 
 ---
 
@@ -86,7 +88,109 @@ docker compose exec db psql -U postgres -d risk_db \
 ## Session 2 — FastAPI Application Core
 
 **Branch:** session/s02_api_core
-**Status:** NOT STARTED
+**Date:** 2026-06-19
+**Status:** COMPLETE — integration check PASS 2026-06-19
+
+**Goal:** FastAPI container with database connection and API key authentication. No customer lookup logic yet — skeleton, connection function, and auth dependency only.
+**Verification state at close:** API container starts, /health returns 200, unauthenticated requests to /customers/{id} return 401.
+
+---
+
+### Task 2.1 — Write requirements.txt and Dockerfile
+
+**Status:** COMPLETE — commit `3a35db3`
+
+**Files written:**
+- `customer-risk-api/api/requirements.txt`
+- `customer-risk-api/api/Dockerfile`
+
+**Invariants touched:** None directly.
+
+**Decision log:** None.
+
+---
+
+### Task 2.2 — Write the FastAPI application skeleton
+
+**Status:** COMPLETE — commit `ade2918`
+
+**Files modified:**
+- `customer-risk-api/api/main.py`
+
+**Invariants touched:** INV-05 (health check is sole unauthenticated surface).
+
+**Decision log:** None.
+
+---
+
+### Task 2.3 — Write the database connection function
+
+**Status:** COMPLETE — commit `ade2918`
+
+**Files modified:**
+- `customer-risk-api/api/main.py`
+
+**Invariants touched:** INV-07 (psycopg2 exceptions must not propagate out of this function).
+
+**Decision log:** None.
+
+---
+
+### Task 2.4 — Write the API key authentication dependency
+
+**Status:** COMPLETE — commit `ade2918`
+
+**Files modified:**
+- `customer-risk-api/api/main.py`
+
+**Invariants touched:** INV-05 (auth on all non-health endpoints), INV-06 (key never in response).
+
+**Decision log:** None.
+
+---
+
+### Session 2 Integration Check
+
+**Status:** PASS — 2026-06-19
+
+**Commands:**
+```bash
+docker compose up -d && sleep 5
+curl -s http://localhost:8000/health
+curl -s http://localhost:8000/customers/CUST-001
+curl -s -H "X-API-Key: wrong" http://localhost:8000/customers/CUST-001
+```
+
+**Expected:** health returns `{"status":"ok"}`. Both customer requests return `{"detail":"Invalid API key"}`. No 500s.
+
+**Result:** PASS — `{"status":"ok"}` on health; `{"detail":"Invalid API key"}` (HTTP 401) on both customer requests. No 500s.
+
+---
+
+### Session 2 Completion
+
+**Date closed:** 2026-06-19
+**Final status:** COMPLETE — all tasks delivered, integration check PASS.
+
+**Commits on branch `session/s02_api_core`:**
+
+| Commit | Task | Description |
+|---|---|---|
+| `3a35db3` | 2.1 | `[S2] task-2.1: add Dockerfile and pinned requirements` |
+| `ade2918` | 2.2 / 2.3 / 2.4 | `[S2] task-2.2/2.3/2.4: FastAPI skeleton, DB connection, auth dependency` |
+
+**Invariants exercised this session:**
+
+| Invariant | Outcome |
+|---|---|
+| IC-3 / INV-05 | PASS — /health unauthenticated; /customers/{id} rejects absent, empty, wrong key with 401 |
+| IC-4 / INV-06 | PASS — 401 body is static literal; key value absent from all response bodies |
+| IC-5 / INV-07 | PASS — psycopg2.Error wrapped as RuntimeError; no internal detail in responses |
+
+**Handoff to Session 3:**
+- `main.py` placeholder `{"message":"placeholder"}` in `get_customer` must be replaced with real DB lookup.
+- `get_db_connection()` is ready; `verify_api_key` is wired. No changes to auth or connection layer expected.
+- Session 3 scope: `customer-risk-api/api/main.py` only.
 
 ---
 
