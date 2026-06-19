@@ -74,4 +74,5 @@ def get_customer(customer_id: str, _: None = Depends(verify_api_key)):
 
 @app.get("/", response_class=HTMLResponse)
 def index():
-    return (STATIC_DIR / "index.html").read_text()
+    html = (STATIC_DIR / "index.html").read_text()
+    return html.replace("{{API_KEY}}", os.environ.get("API_KEY", ""), 1)

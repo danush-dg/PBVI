@@ -9,6 +9,8 @@
 | v1.3 | 2026-06-19 | CC | Session 2 integration check — PASS. Session closed. |
 | v1.4 | 2026-06-19 | Engineer | Session 3 opened. Branch session/s03_lookup_endpoint. |
 | v1.5 | 2026-06-19 | CC | Session 3 integration check — PASS. Session closed. |
+| v1.6 | 2026-06-19 | Engineer | Session 4 opened. Branch session/s04_ui. |
+| v1.7 | 2026-06-19 | CC | Session 4 integration check — PASS. Session closed. |
 
 ---
 
@@ -283,7 +285,103 @@ curl -s http://localhost:8000/customers/CUST-001
 ## Session 4 — Browser UI
 
 **Branch:** session/s04_ui
-**Status:** NOT STARTED
+**Date:** 2026-06-19
+**Status:** COMPLETE — integration check PASS 2026-06-19
+
+**Goal:** Serve `index.html` from `GET /` in FastAPI. Build a plain HTML + vanilla JS form that accepts a customer ID and API key, calls `/customers/{id}`, and displays the result. No frontend framework.
+**Verification state at close (target):** Browser loads the UI, submits a valid ID, and displays correct tier and risk factors.
+
+---
+
+### Task 4.1 — Write index.html browser UI
+
+**Status:** COMPLETE
+
+**Files modified:**
+- `customer-risk-api/static/index.html`
+
+**Invariants touched:** INV-09 (textContent set directly from parsed JSON; no switch, toLowerCase, toUpperCase, replace, sort, filter on response values), IC-3 (X-API-Key sent via JS header, not URL), IC-4 (API key read from meta tag placeholder `{{API_KEY}}`; not rendered or logged).
+
+**Decision log:**
+- API key sourced from `<meta name="api-key" content="{{API_KEY}}">` — placeholder wired in Task 4.2.
+- `encodeURIComponent` used on customer ID input to prevent path injection.
+- All three response fields rendered with `element.textContent = data.<field>` — no transformation.
+
+---
+
+### Task 4.2 — Wire API key into index.html via GET / route
+
+**Status:** COMPLETE
+
+**Files modified:**
+- `customer-risk-api/api/main.py`
+
+**Invariants touched:** IC-4 / INV-06 (API_KEY injected into meta tag content only; `.replace(..., 1)` limits substitution to exactly one occurrence; key never logged).
+
+**Decision log:**
+- `str.replace("{{API_KEY}}", ..., 1)` — count=1 ensures at most one substitution, guaranteeing the key cannot appear in the rendered HTML beyond the single meta tag.
+- `os.environ.get("API_KEY", "")` — empty fallback prevents a KeyError; the UI will fail auth requests gracefully if the env var is unset.
+- Replacement is at serve-time only; `static/index.html` on disk is never modified.
+
+---
+
+### Session 4 Integration Check
+
+**Status:** PASS — 2026-06-19
+
+**Commands:**
+```bash
+# TC-1: meta tag present with injected key
+curl -s http://localhost:8000/ | grep 'meta name="api-key"'
+# TC-2: key appears exactly once in rendered HTML
+curl -s http://localhost:8000/ | grep -c "$API_KEY"
+# TC-3: all three UI elements present
+curl -s http://localhost:8000/ | grep -oE "customer-id-input|submit-btn|result-area"
+# TC-4: no JS transformation
+grep -E "(switch|\.toLowerCase|\.toUpperCase|\.replace|\.sort|\.filter)" customer-risk-api/static/index.html
+# Customer lookups
+curl -s -H "X-API-Key: $API_KEY" http://localhost:8000/customers/CUST-001
+curl -s -H "X-API-Key: $API_KEY" http://localhost:8000/customers/CUST-007
+curl -s -H "X-API-Key: $API_KEY" http://localhost:8000/customers/CUST-999
+curl -s http://localhost:8000/customers/CUST-001
+```
+
+**Result:** PASS
+
+**Actual output:**
+```
+<meta name="api-key" content="api-key-2026">                           TC-1 PASS
+1                                                                       TC-2 PASS
+customer-id-input / result-area / submit-btn                            TC-3 PASS
+PASS — no matches                                                       TC-4 PASS
+{"customer_id":"CUST-001","risk_tier":"LOW","risk_factors":["low credit utilisation","stable employment history"]}   HTTP 200
+{"customer_id":"CUST-007","risk_tier":"HIGH","risk_factors":["default on prior loan","high credit utilisation","county court judgement"]}  HTTP 200
+{"detail":"Customer not found"}  HTTP 404
+{"detail":"Invalid API key"}  HTTP 401
+GET /  HTTP 200
+```
+
+**Structural fix applied:** `docker-compose.yml` amended to add `./static:/app/static` volume mount. The static directory was outside the `./api` Docker build context and unreachable inside the container. This is a one-line non-destructive addition; no invariants affected.
+
+---
+
+### Session 4 Completion
+
+**Date closed:** 2026-06-19
+**Final status:** COMPLETE — all tasks delivered, integration check PASS.
+
+**Invariants exercised this session:**
+
+| Invariant | Outcome |
+|---|---|
+| INV-09 | PASS — all response values rendered via textContent; no transformation code in index.html |
+| IC-4 / INV-06 | PASS — API_KEY injected into meta tag content only; count=1 replacement; appears exactly once |
+| IC-3 / INV-05 | PASS — GET / is unauthenticated; X-API-Key sent as header in JS fetch |
+| IC-5 / INV-07 | PASS — error states display static strings; no internal detail surfaced in UI |
+
+**Handoff to Session 5:**
+- `index.html` and `GET /` are complete. No changes expected.
+- Session 5 scope: `api/main.py`, `api/test_injection.py`, `api/requirements.txt`, `verification/test_invariants.sh`, `README.md`.
 
 ---
 

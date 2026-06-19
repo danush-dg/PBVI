@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="api-key" content="{{API_KEY}}">
+  <title>Customer Risk Lookup</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; }
+    label { display: block; margin-bottom: 0.25rem; font-weight: bold; }
+    input { width: 100%; box-sizing: border-box; padding: 0.4rem; margin-bottom: 0.75rem; font-size: 1rem; }
+    button { padding: 0.4rem 1.2rem; font-size: 1rem; cursor: pointer; }
+    #result-area { margin-top: 1.5rem; }
+    .field { margin: 0.5rem 0; }
+    .field-label { font-weight: bold; }
+    ul { margin: 0.25rem 0 0 1.25rem; padding: 0; }
+  </style>
+</head>
+<body>
+  <h1>Customer Risk Lookup</h1>
+  <label for="customer-id-input">Customer ID</label>
+  <input id="customer-id-input" type="text" placeholder="e.g. CUST-001">
+  <button id="submit-btn">Look Up</button>
+  <div id="result-area"></div>
+
+  <script>
+    document.getElementById('submit-btn').addEventListener('click', async () => {
+      const customerId = document.getElementById('customer-id-input').value;
+      const apiKey = document.querySelector('meta[name="api-key"]').getAttribute('content');
+      const resultArea = document.getElementById('result-area');
+
+      resultArea.innerHTML = '';
+
+      let response;
+      try {
+        response = await fetch('/customers/' + encodeURIComponent(customerId), {
+          headers: { 'X-API-Key': apiKey }
+        });
+      } catch (_) {
+        resultArea.textContent = 'An error occurred';
+        return;
+      }
+
+      if (response.status === 401) {
+        resultArea.textContent = 'Unauthorized';
+        return;
+      }
+      if (response.status === 404) {
+        resultArea.textContent = 'Customer not found';
+        return;
+      }
+      if (!response.ok) {
+        resultArea.textContent = 'An error occurred';
+        return;
+      }
+
+      const data = await response.json();
+
+      const idEl = document.createElement('div');
+      idEl.className = 'field';
+      const idLabel = document.createElement('span');
+      idLabel.className = 'field-label';
+      idLabel.textContent = 'customer_id: ';
+      const idVal = document.createElement('span');
+      idVal.textContent = data.customer_id;
+      idEl.appendChild(idLabel);
+      idEl.appendChild(idVal);
+
+      const tierEl = document.createElement('div');
+      tierEl.className = 'field';
+      const tierLabel = document.createElement('span');
+      tierLabel.className = 'field-label';
+      tierLabel.textContent = 'risk_tier: ';
+      const tierVal = document.createElement('span');
+      tierVal.textContent = data.risk_tier;
+      tierEl.appendChild(tierLabel);
+      tierEl.appendChild(tierVal);
+
+      const factorsEl = document.createElement('div');
+      factorsEl.className = 'field';
+      const factorsLabel = document.createElement('div');
+      factorsLabel.className = 'field-label';
+      factorsLabel.textContent = 'risk_factors:';
+      const factorsList = document.createElement('ul');
+      data.risk_factors.forEach(function(factor) {
+        const li = document.createElement('li');
+        li.textContent = factor;
+        factorsList.appendChild(li);
+      });
+      factorsEl.appendChild(factorsLabel);
+      factorsEl.appendChild(factorsList);
+
+      resultArea.appendChild(idEl);
+      resultArea.appendChild(tierEl);
+      resultArea.appendChild(factorsEl);
+    });
+  </script>
+</body>
+</html>

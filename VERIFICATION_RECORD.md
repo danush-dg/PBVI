@@ -9,6 +9,8 @@
 | v1.3 | 2026-06-19 | Engineer | Session 2 integration check — all TCs closed PASS. |
 | v1.4 | 2026-06-19 | Engineer | Session 3 opened — TC stubs added for Task 3.1. |
 | v1.5 | 2026-06-19 | CC | Session 3 integration check — all TCs closed PASS. |
+| v1.6 | 2026-06-19 | Engineer | Session 4 opened — TC stubs added for Tasks 4.1–4.2. |
+| v1.7 | 2026-06-19 | CC | Session 4 integration check — all TCs closed PASS. |
 
 ---
 
@@ -382,7 +384,38 @@ curl -s http://localhost:8000/customers/CUST-001
 
 ## Session 4 — Browser UI
 
-All verification records: NOT STARTED
+### Task 4.1 — index.html browser UI
+
+| TC | Description | Command | Expected | Result | Notes |
+|---|---|---|---|---|---|
+| TC-1 | GET / returns 200 | `curl -so /dev/null -w "%{http_code}" http://localhost:8000/` | `200` | PASS | `200` |
+| TC-2 | GET / requires no API key | `curl -s http://localhost:8000/` | 200 (not 401) | PASS | 200 — no auth required |
+| TC-3 | All three UI element IDs present | `curl -s http://localhost:8000/ \| grep -oE "customer-id-input\|submit-btn\|result-area"` | three matches | PASS | all three found |
+| TC-4 | No JS transformation of response values | `grep -E "(switch\|\.toLowerCase\|\.toUpperCase\|\.replace\|\.sort\|\.filter)" index.html` | no output | PASS | 0 matches |
+
+---
+
+### Task 4.2 — Wire API key into GET / route
+
+| TC | Description | Command | Expected | Result | Notes |
+|---|---|---|---|---|---|
+| TC-1 | Meta tag contains injected API_KEY | `curl -s http://localhost:8000/ \| grep 'meta name="api-key"'` | line with non-empty content | PASS | `content="api-key-2026"` |
+| TC-2 | API_KEY appears exactly once in rendered HTML | `curl -s http://localhost:8000/ \| grep -c "$API_KEY"` | `1` | PASS | count = 1 |
+| TC-3 | Customer lookup via UI key works end-to-end | `curl -s -H "X-API-Key: $API_KEY" http://localhost:8000/customers/CUST-001` | 200 with customer data | PASS | correct JSON returned |
+
+---
+
+### Session 4 Integration Check
+
+| Check | Expected | Result |
+|---|---|---|
+| CUST-001 → 200 verbatim data | `{"customer_id":"CUST-001","risk_tier":"LOW",...}` | PASS |
+| CUST-007 → 200 HIGH tier verbatim | `{"customer_id":"CUST-007","risk_tier":"HIGH",...}` | PASS |
+| CUST-999 → 404 | `{"detail":"Customer not found"}` | PASS |
+| No key → 401 | `{"detail":"Invalid API key"}` | PASS |
+| GET / → 200 HTML | HTTP 200 | PASS |
+| API_KEY count in HTML = 1 | `1` | PASS |
+| No JS transformation code | 0 grep matches | PASS |
 
 ---
 
