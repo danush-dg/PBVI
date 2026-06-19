@@ -8,6 +8,7 @@
 | v1.2 | 2026-06-19 | Engineer | Session 2 opened. Branch session/s02_api_core. |
 | v1.3 | 2026-06-19 | CC | Session 2 integration check — PASS. Session closed. |
 | v1.4 | 2026-06-19 | Engineer | Session 3 opened. Branch session/s03_lookup. |
+| v1.5 | 2026-06-19 | CC | Session 3 integration check — PASS. Session closed. |
 
 ---
 
@@ -199,7 +200,7 @@ curl -s -H "X-API-Key: wrong" http://localhost:8000/customers/CUST-001
 
 **Branch:** session/s03_lookup
 **Date:** 2026-06-19
-**Status:** IN PROGRESS
+**Status:** COMPLETE — integration check PASS 2026-06-19
 
 **Goal:** Replace placeholder in `get_customer` with real parameterised DB query. Add 404 and 500 handling. Add Pydantic response model. No changes to auth or connection layer.
 **Verification state at close:** Authenticated requests return correct customer data verbatim. Unknown IDs return 404. DB errors return 500 with no internal detail.
@@ -208,7 +209,7 @@ curl -s -H "X-API-Key: wrong" http://localhost:8000/customers/CUST-001
 
 ### Task 3.1 — Implement the customer lookup route
 
-**Status:** PENDING
+**Status:** COMPLETE — commit `1428b0e`
 
 **Files to modify:**
 - `customer-risk-api/api/main.py`
@@ -221,7 +222,7 @@ curl -s -H "X-API-Key: wrong" http://localhost:8000/customers/CUST-001
 
 ### Session 3 Integration Check
 
-**Status:** PENDING
+**Status:** PASS — 2026-06-19
 
 **Commands:**
 ```bash
@@ -236,7 +237,46 @@ curl -s http://localhost:8000/customers/CUST-001
 
 **Expected:** One 200 per tier with correct data. CUST-999 → 404 `{"detail":"Customer not found"}`. No-key request → 401 `{"detail":"Invalid API key"}`. No 500s.
 
-**Result:** PENDING
+**Result:** PASS — all 5 requests matched expected output exactly.
+
+**Actual output:**
+```
+--- CUST-001 ---
+{"customer_id":"CUST-001","risk_tier":"LOW","risk_factors":["low credit utilisation","stable employment history"]}  HTTP 200
+--- CUST-004 ---
+{"customer_id":"CUST-004","risk_tier":"MEDIUM","risk_factors":["recent address change","moderate debt-to-income ratio"]}  HTTP 200
+--- CUST-007 ---
+{"customer_id":"CUST-007","risk_tier":"HIGH","risk_factors":["default on prior loan","high credit utilisation","county court judgement"]}  HTTP 200
+{"detail":"Customer not found"}  HTTP 404
+{"detail":"Invalid API key"}  HTTP 401
+```
+
+---
+
+### Session 3 Completion
+
+**Date closed:** 2026-06-19
+**Final status:** COMPLETE — all tasks delivered, integration check PASS.
+
+**Commits on branch `session/s03_lookup`:**
+
+| Commit | Task | Description |
+|---|---|---|
+| `1428b0e` | 3.1 | `[S3] task-3.1: implement customer lookup route` |
+
+**Invariants exercised this session:**
+
+| Invariant | Outcome |
+|---|---|
+| IC-1 / INV-01 | PASS — response values match DB row exactly, no transformation |
+| IC-2 / INV-02 | PASS — exactly three outcomes: 200, 404, 500 |
+| INV-04a | PASS — response body has exactly three fields |
+| IC-5 / INV-07 | PASS — all exceptions caught; static literal in 500 response |
+| INV-10 | PASS — parameterised `%s` binding; SQL string is a static constant |
+
+**Handoff to Session 4:**
+- `get_customer` is complete. No changes to this route expected.
+- Session 4 scope: `customer-risk-api/static/index.html` and `customer-risk-api/api/main.py` (GET / route only).
 
 ---
 

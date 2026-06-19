@@ -8,6 +8,7 @@
 | v1.2 | 2026-06-19 | Engineer | Session 2 opened — TC stubs added for Tasks 2.1–2.4. |
 | v1.3 | 2026-06-19 | Engineer | Session 2 integration check — all TCs closed PASS. |
 | v1.4 | 2026-06-19 | Engineer | Session 3 opened — TC stubs added for Task 3.1. |
+| v1.5 | 2026-06-19 | CC | Session 3 integration check — all TCs closed PASS. |
 
 ---
 
@@ -287,13 +288,13 @@ Performed against commit `ade2918` (`customer-risk-api/api/main.py`).
 
 | TC | Description | Command | Expected | Result | Notes |
 |---|---|---|---|---|---|
-| TC-1 | Correct key → 200 with customer_id, risk_tier, risk_factors | `curl -s -H "X-API-Key: $API_KEY" http://localhost:8000/customers/CUST-001` | `{"customer_id":"CUST-001","risk_tier":"...","risk_factors":[...]}` | SKIP | |
-| TC-2 | Response values match DB row exactly | DB query vs API response field-by-field | All three fields identical | SKIP | |
-| TC-3 | Non-existent ID → 404 | `curl -s -H "X-API-Key: $API_KEY" http://localhost:8000/customers/CUST-999` | `{"detail":"Customer not found"}` | SKIP | |
-| TC-4 | DB stopped → 500 no detail | Stop db, curl, start db | `{"detail":"Internal server error"}` | SKIP | |
-| TC-5 | SQL injection string → 404 | `curl -s -H "X-API-Key: $API_KEY" "http://localhost:8000/customers/CUST-001'%20OR%20'1'%3D'1"` | 404 `{"detail":"Customer not found"}` | SKIP | |
-| TC-6 | Response body has exactly three fields | Parse keys from 200 response | `['customer_id', 'risk_factors', 'risk_tier']` | SKIP | |
-| TC-7 | risk_factors is non-empty array matching DB order | Compare DB array to response array | Identical element order | SKIP | |
+| TC-1 | Correct key → 200 with customer_id, risk_tier, risk_factors | `curl -s -H "X-API-Key: $API_KEY" http://localhost:8000/customers/CUST-001` | `{"customer_id":"CUST-001","risk_tier":"...","risk_factors":[...]}` | PASS | `{"customer_id":"CUST-001","risk_tier":"LOW","risk_factors":["low credit utilisation","stable employment history"]}` |
+| TC-2 | Response values match DB row exactly | DB query vs API response field-by-field | All three fields identical | PASS | customer_id, risk_tier, risk_factors identical |
+| TC-3 | Non-existent ID → 404 | `curl -s -H "X-API-Key: $API_KEY" http://localhost:8000/customers/CUST-999` | `{"detail":"Customer not found"}` | PASS | `{"detail":"Customer not found"}` HTTP 404 |
+| TC-4 | DB stopped → 500 no detail | Stop db, curl, start db | `{"detail":"Internal server error"}` | PASS | `{"detail":"Internal server error"}` HTTP 500 |
+| TC-5 | SQL injection string → 404 | `curl -s -H "X-API-Key: $API_KEY" "http://localhost:8000/customers/CUST-001'%20OR%20'1'%3D'1"` | 404 `{"detail":"Customer not found"}` | PASS | `{"detail":"Customer not found"}` HTTP 404 |
+| TC-6 | Response body has exactly three fields | Parse keys from 200 response | `['customer_id', 'risk_factors', 'risk_tier']` | PASS | `['customer_id', 'risk_factors', 'risk_tier']` |
+| TC-7 | risk_factors is non-empty array matching DB order | Compare DB array to response array | Identical element order | PASS | 2-element and 3-element arrays confirmed in order |
 
 **Predictions:**
 - TC-1/2 (data fidelity): Parameterised SELECT returns row as-is; no transformation in response path → response will match DB exactly.
@@ -304,11 +305,11 @@ Performed against commit `ade2918` (`customer-risk-api/api/main.py`).
 
 **Supplementary — response matches DB:**
 ```bash
-docker compose exec db psql -U riskuser -d riskdb \
+docker compose exec db psql -U postgres -d risk_db -t \
   -c "SELECT customer_id, risk_tier, risk_factors FROM customer_risk_profiles WHERE customer_id='CUST-001';"
 ```
 **Expected:** Fields match API response verbatim.
-**Result:** SKIP
+**Result:** PASS — ` CUST-001 | LOW | {"low credit utilisation","stable employment history"}` — identical to API.
 
 **Supplementary — exact field set:**
 ```bash
@@ -316,7 +317,7 @@ curl -s -H "X-API-Key: $API_KEY" http://localhost:8000/customers/CUST-001 | \
   python -c "import sys,json; d=json.load(sys.stdin); print(sorted(d.keys()))"
 ```
 **Expected:** `['customer_id', 'risk_factors', 'risk_tier']`
-**Result:** SKIP
+**Result:** PASS — `['customer_id', 'risk_factors', 'risk_tier']`
 
 **Supplementary — 500 no internal detail:**
 ```bash
@@ -325,7 +326,7 @@ curl -s -H "X-API-Key: $API_KEY" http://localhost:8000/customers/CUST-001
 docker compose start db && sleep 5
 ```
 **Expected:** `{"detail":"Internal server error"}` — one key only.
-**Result:** SKIP
+**Result:** PASS — `{"detail":"Internal server error"}` HTTP 500
 
 ---
 
@@ -344,7 +345,38 @@ curl -s http://localhost:8000/customers/CUST-001
 
 **Expected:** One 200 per tier with correct data. CUST-999 → 404 `{"detail":"Customer not found"}`. No-key request → 401 `{"detail":"Invalid API key"}`. No 500s.
 
-**Result:** SKIP
+**Result:** PASS — 2026-06-19
+
+**Actual output:**
+```
+--- CUST-001 ---
+{"customer_id":"CUST-001","risk_tier":"LOW","risk_factors":["low credit utilisation","stable employment history"]}  HTTP 200
+--- CUST-004 ---
+{"customer_id":"CUST-004","risk_tier":"MEDIUM","risk_factors":["recent address change","moderate debt-to-income ratio"]}  HTTP 200
+--- CUST-007 ---
+{"customer_id":"CUST-007","risk_tier":"HIGH","risk_factors":["default on prior loan","high credit utilisation","county court judgement"]}  HTTP 200
+{"detail":"Customer not found"}  HTTP 404
+{"detail":"Invalid API key"}  HTTP 401
+```
+
+---
+
+### Session 3 Verification Verdict
+
+**Date:** 2026-06-19
+**Verdicted by:** CC (Claude Code)
+
+| Area | Verdict | Evidence |
+|---|---|---|
+| Task 3.1 — Customer lookup route | PASS | TC-1–TC-7 PASS; all supplementary checks PASS |
+| Session integration check | PASS | 5/5 requests matched expected output exactly |
+| IC-1 / INV-01 | PASS | API values identical to DB row, no transformation |
+| IC-2 / INV-02 | PASS | Exactly 3 outcomes: 200 / 404 / 500 |
+| INV-04a | PASS | Response has exactly 3 fields enforced by Pydantic `extra='forbid'` |
+| IC-5 / INV-07 | PASS | All exceptions caught; static literal in 500 |
+| INV-10 | PASS | SQL is a static constant; `%s` parameterised binding; injection → 404 |
+
+**Overall session verdict: PASS — cleared to open PR and advance to Session 4.**
 
 ---
 
@@ -364,15 +396,15 @@ All verification records: NOT STARTED
 
 | Invariant | First enforced | Automated check available | Current status |
 |---|---|---|---|
-| INV-01 | Task 3.1 | Yes (Task 5.3) | NOT REACHED |
-| INV-02 | Task 3.1 | Yes (Task 5.3) | NOT REACHED |
+| INV-01 | Task 3.1 | Yes (Task 5.3) | PASS |
+| INV-02 | Task 3.1 | Yes (Task 5.3) | PASS |
 | INV-03 | Task 1.2 | Yes (Task 1.2 TC-5, Task 5.3) | PASS |
-| INV-04a | Task 3.1 | Yes (Task 5.3) | NOT REACHED |
+| INV-04a | Task 3.1 | Yes (Task 5.3) | PASS |
 | INV-04b | Task 1.2 | Yes (Task 1.2 TC-2, Task 5.3) | PASS |
 | INV-05 | Task 2.4 | Yes (Task 5.3) | PASS |
 | INV-06 | Task 2.4 | Yes (Task 5.3) | PASS |
 | INV-07 | Task 2.3 | Yes (Task 5.3) | PASS |
 | INV-08 | Task 1.3 | MANUAL | MANUAL — no external imports; verified by code review |
 | INV-09 | Task 4.1 | MANUAL | NOT REACHED |
-| INV-10 | Task 3.1 | Yes (Task 5.2, Task 5.3) | NOT REACHED |
+| INV-10 | Task 3.1 | Yes (Task 5.2, Task 5.3) | PASS |
 | INV-11 | Task 1.3 | Yes (Task 1.3 TC-3, Task 5.3) | PASS |
