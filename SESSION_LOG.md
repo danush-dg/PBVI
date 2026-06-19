@@ -4,6 +4,7 @@
 | Version | Date | Author | Change |
 |---|---|---|---|
 | v1.0 | 2026-06-19 | Engineer | Session 1 opened. |
+| v1.1 | 2026-06-19 | Engineer | Session 1 integration check — PASS. Session closed. |
 
 ---
 
@@ -11,7 +12,7 @@
 
 **Branch:** session/s01_scaffold
 **Date:** 2026-06-19
-**Status:** IN PROGRESS
+**Status:** COMPLETE — integration check PASS 2026-06-19
 
 **Goal:** Postgres running with correct schema and seed data. No application code.
 **Verification state at close:** Direct psql query returns 9+ seed rows across all three tiers.
@@ -20,7 +21,7 @@
 
 ### Task 1.1 — Create the project directory structure
 
-**Status:** PENDING
+**Status:** COMPLETE
 
 **Files to create:**
 - `customer-risk-api/docker-compose.yml` — empty placeholder
@@ -39,7 +40,7 @@
 
 ### Task 1.2 — Write the database schema and seed data
 
-**Status:** PENDING
+**Status:** COMPLETE — all TCs PASS (TC-5 static, TC-1/2/3/4 live DB via integration check)
 
 **Files modified:**
 - `customer-risk-api/db/init.sql`
@@ -52,7 +53,7 @@
 
 ### Task 1.3 — Write docker-compose.yml and .env.example
 
-**Status:** PENDING
+**Status:** COMPLETE
 
 **Files modified:**
 - `customer-risk-api/docker-compose.yml`
@@ -66,22 +67,19 @@
 
 ### Session 1 Integration Check
 
-**Status:** PENDING
+**Status:** PASS — 2026-06-19
 
 **Command:**
 ```bash
 cd customer-risk-api
-cp .env.example .env
-# Edit .env to set real values before running
 docker compose up db -d
-sleep 8
-docker compose exec db psql -U riskuser -d riskdb \
+docker compose exec db psql -U postgres -d risk_db \
   -c "SELECT customer_id, risk_tier FROM customer_risk_profiles ORDER BY customer_id;"
 ```
 
 **Expected:** 9 rows returned, all three tiers present, no errors.
 
-**Result:** PENDING
+**Result:** PASS — 9 rows returned (3 LOW, 3 MEDIUM, 3 HIGH), no errors.
 
 ---
 
