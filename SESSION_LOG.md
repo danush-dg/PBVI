@@ -7,6 +7,7 @@
 | v1.1 | 2026-06-19 | Engineer | Session 1 integration check — PASS. Session closed. |
 | v1.2 | 2026-06-19 | Engineer | Session 2 opened. Branch session/s02_api_core. |
 | v1.3 | 2026-06-19 | CC | Session 2 integration check — PASS. Session closed. |
+| v1.4 | 2026-06-19 | Engineer | Session 3 opened. Branch session/s03_lookup. |
 
 ---
 
@@ -25,7 +26,7 @@
 
 **Status:** COMPLETE
 
-**Files to create:**
+**Files created:**
 - `customer-risk-api/docker-compose.yml` — empty placeholder
 - `customer-risk-api/.env.example` — empty placeholder
 - `customer-risk-api/db/init.sql` — empty placeholder
@@ -197,7 +198,45 @@ curl -s -H "X-API-Key: wrong" http://localhost:8000/customers/CUST-001
 ## Session 3 — Customer Lookup Endpoint
 
 **Branch:** session/s03_lookup
-**Status:** NOT STARTED
+**Date:** 2026-06-19
+**Status:** IN PROGRESS
+
+**Goal:** Replace placeholder in `get_customer` with real parameterised DB query. Add 404 and 500 handling. Add Pydantic response model. No changes to auth or connection layer.
+**Verification state at close:** Authenticated requests return correct customer data verbatim. Unknown IDs return 404. DB errors return 500 with no internal detail.
+
+---
+
+### Task 3.1 — Implement the customer lookup route
+
+**Status:** PENDING
+
+**Files to modify:**
+- `customer-risk-api/api/main.py`
+
+**Invariants touched:** INV-01 (data fidelity), INV-02 (three outcomes only), INV-04a (exactly three response fields), INV-07 (no DB detail in 500), INV-10 (parameterised query only).
+
+**Decision log:** None.
+
+---
+
+### Session 3 Integration Check
+
+**Status:** PENDING
+
+**Commands:**
+```bash
+docker compose up -d && sleep 5
+for id in CUST-001 CUST-004 CUST-007; do
+  echo "--- $id ---"
+  curl -s -H "X-API-Key: $API_KEY" http://localhost:8000/customers/$id
+done
+curl -s -H "X-API-Key: $API_KEY" http://localhost:8000/customers/CUST-999
+curl -s http://localhost:8000/customers/CUST-001
+```
+
+**Expected:** One 200 per tier with correct data. CUST-999 → 404 `{"detail":"Customer not found"}`. No-key request → 401 `{"detail":"Invalid API key"}`. No 500s.
+
+**Result:** PENDING
 
 ---
 

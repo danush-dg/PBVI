@@ -7,6 +7,7 @@
 | v1.1 | 2026-06-19 | Engineer | Session 1 integration check — all TCs closed PASS. |
 | v1.2 | 2026-06-19 | Engineer | Session 2 opened — TC stubs added for Tasks 2.1–2.4. |
 | v1.3 | 2026-06-19 | Engineer | Session 2 integration check — all TCs closed PASS. |
+| v1.4 | 2026-06-19 | Engineer | Session 3 opened — TC stubs added for Task 3.1. |
 
 ---
 
@@ -96,13 +97,6 @@ grep -iE "(UPDATE|DELETE|TRUNCATE|CREATE TRIGGER|CREATE FUNCTION)" customer-risk
 | TC-4 | No external network definitions | `grep -i "external: true" customer-risk-api/docker-compose.yml` | No output | PASS | 0 matches |
 | TC-5 | All six keys in .env.example | `grep -c "=" customer-risk-api/.env.example` | `6` | PASS | count=6 |
 
-**Primary verification command:**
-```bash
-cd customer-risk-api && docker compose config --quiet && echo "CONFIG VALID"
-```
-**Expected:** `CONFIG VALID` with no errors.
-**Result:** PASS
-
 **Supplementary — no external networks:**
 ```bash
 grep -i "external: true" customer-risk-api/docker-compose.yml
@@ -124,8 +118,6 @@ grep -c "=" customer-risk-api/.env.example
 **Command:**
 ```bash
 cd customer-risk-api
-cp .env.example .env
-# Edit .env to set real values before running
 docker compose up db -d
 sleep 8
 docker compose exec db psql -U riskuser -d riskdb \
@@ -238,9 +230,9 @@ curl -s -H "X-API-Key: wrong" http://localhost:8000/customers/CUST-001
 
 **Actual output:**
 ```
-{"status":"ok"}        HTTP 200
-{"detail":"Invalid API key"}   HTTP 401  (no key)
-{"detail":"Invalid API key"}   HTTP 401  (wrong key)
+{"status":"ok"}               HTTP 200
+{"detail":"Invalid API key"}  HTTP 401  (no key)
+{"detail":"Invalid API key"}  HTTP 401  (wrong key)
 ```
 
 ---
@@ -262,10 +254,8 @@ Performed against commit `ade2918` (`customer-risk-api/api/main.py`).
 | CD-9 | Conditional nesting ≤ 2 levels (IC-2) | Indent depth scan | PASS — depth-3 lines are keyword args inside `connect()`, not conditional nesting |
 
 **Code review notes:**
-- `verify_api_key` correctly checks `not api_key` before equality — handles both `None` (header absent) and empty string.
-- `get_db_connection` catches `psycopg2.Error` (base class), so all connection sub-errors are wrapped. `RuntimeError` is the only exception type that escapes.
-- `get_customer` returns `{"message":"placeholder"}` on 200 — correct placeholder for Session 3; auth is enforced before this code runs.
-- `index()` reads the static file at request time — not cached, but acceptable for this scope.
+- `verify_api_key` checks `not api_key` before equality — handles both `None` (header absent) and empty string.
+- `get_db_connection` catches `psycopg2.Error` (base class); `RuntimeError` is the only exception type that escapes.
 - No connection pool, no ORM, no external calls — stack constraints respected.
 
 ---
@@ -293,7 +283,68 @@ Performed against commit `ade2918` (`customer-risk-api/api/main.py`).
 
 ## Session 3 — Customer Lookup Endpoint
 
-All verification records: NOT STARTED
+### Task 3.1 — Customer lookup route
+
+| TC | Description | Command | Expected | Result | Notes |
+|---|---|---|---|---|---|
+| TC-1 | Correct key → 200 with customer_id, risk_tier, risk_factors | `curl -s -H "X-API-Key: $API_KEY" http://localhost:8000/customers/CUST-001` | `{"customer_id":"CUST-001","risk_tier":"...","risk_factors":[...]}` | SKIP | |
+| TC-2 | Response values match DB row exactly | DB query vs API response field-by-field | All three fields identical | SKIP | |
+| TC-3 | Non-existent ID → 404 | `curl -s -H "X-API-Key: $API_KEY" http://localhost:8000/customers/CUST-999` | `{"detail":"Customer not found"}` | SKIP | |
+| TC-4 | DB stopped → 500 no detail | Stop db, curl, start db | `{"detail":"Internal server error"}` | SKIP | |
+| TC-5 | SQL injection string → 404 | `curl -s -H "X-API-Key: $API_KEY" "http://localhost:8000/customers/CUST-001'%20OR%20'1'%3D'1"` | 404 `{"detail":"Customer not found"}` | SKIP | |
+| TC-6 | Response body has exactly three fields | Parse keys from 200 response | `['customer_id', 'risk_factors', 'risk_tier']` | SKIP | |
+| TC-7 | risk_factors is non-empty array matching DB order | Compare DB array to response array | Identical element order | SKIP | |
+
+**Predictions:**
+- TC-1/2 (data fidelity): Parameterised SELECT returns row as-is; no transformation in response path → response will match DB exactly.
+- TC-3 (404): `fetchone()` returns `None` for unknown ID → `HTTPException(404)` raised.
+- TC-4 (500): `get_db_connection()` raises `RuntimeError`; route catches it → `HTTPException(500)` with static literal.
+- TC-5 (injection): Parameterised `%s` binding treats entire string as a literal value → no row matches → 404.
+- TC-6 (field set): `response_model=CustomerResponse` with `extra='forbid'` enforces exactly three fields.
+
+**Supplementary — response matches DB:**
+```bash
+docker compose exec db psql -U riskuser -d riskdb \
+  -c "SELECT customer_id, risk_tier, risk_factors FROM customer_risk_profiles WHERE customer_id='CUST-001';"
+```
+**Expected:** Fields match API response verbatim.
+**Result:** SKIP
+
+**Supplementary — exact field set:**
+```bash
+curl -s -H "X-API-Key: $API_KEY" http://localhost:8000/customers/CUST-001 | \
+  python -c "import sys,json; d=json.load(sys.stdin); print(sorted(d.keys()))"
+```
+**Expected:** `['customer_id', 'risk_factors', 'risk_tier']`
+**Result:** SKIP
+
+**Supplementary — 500 no internal detail:**
+```bash
+docker compose stop db && sleep 2
+curl -s -H "X-API-Key: $API_KEY" http://localhost:8000/customers/CUST-001
+docker compose start db && sleep 5
+```
+**Expected:** `{"detail":"Internal server error"}` — one key only.
+**Result:** SKIP
+
+---
+
+### Session 3 Integration Check
+
+**Commands:**
+```bash
+docker compose up -d && sleep 5
+for id in CUST-001 CUST-004 CUST-007; do
+  echo "--- $id ---"
+  curl -s -H "X-API-Key: $API_KEY" http://localhost:8000/customers/$id
+done
+curl -s -H "X-API-Key: $API_KEY" http://localhost:8000/customers/CUST-999
+curl -s http://localhost:8000/customers/CUST-001
+```
+
+**Expected:** One 200 per tier with correct data. CUST-999 → 404 `{"detail":"Customer not found"}`. No-key request → 401 `{"detail":"Invalid API key"}`. No 500s.
+
+**Result:** SKIP
 
 ---
 
